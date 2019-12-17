@@ -22,7 +22,7 @@ import math
 
 import tensorflow as tf
 
-
+# 获得estimator的训练和评测的模式值，传参用
 _TRAIN, _EVAL = tf.estimator.ModeKeys.TRAIN, tf.estimator.ModeKeys.EVAL
 
 
@@ -53,9 +53,9 @@ class Manager(object):
                epochs_between_evals, default_train_epochs, batch_size,
                max_length, use_tpu=False, num_tpu_shards=8):
     if train_steps and train_epochs:
-      raise ValueError("Both train_steps or train_epochs were be defined.")
+      raise ValueError("Both train_steps or train_epochs were be defined.")   # 同时定义step和epoch会报错
 
-    # Determine training schedule based on flags.
+    # Determine training schedule based on flags.  基于flas设定的参数计算训练过程的规划
     if train_steps:
       self.train_eval_iterations = train_steps // steps_between_evals
       self._single_iteration_train_steps = steps_between_evals
@@ -74,6 +74,7 @@ class Manager(object):
     if self.use_tpu:
       assert (self.batch_size // self.max_length) % self.num_tpu_shards == 0
 
+  # 把获得参数的方法通过@property变成属性，调用时不需要再用()
   @property
   def single_iteration_train_steps(self):
     if self._single_iteration_train_steps or not self.use_tpu:
@@ -111,7 +112,7 @@ class Manager(object):
 
   def epochs_to_steps(self, num_epochs, mode):
     """Converts a number of epochs to a number of training steps.
-
+    使用TPU时，可以通过该方法将一部分epoch转化成step
     TPU only: This function assumes that static_batch is True.
 
       TPU can not tolerate an OutOfRange error from a dataset. As a result the

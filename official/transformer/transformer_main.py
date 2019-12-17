@@ -65,7 +65,7 @@ TENSORS_TO_LOG = {
     "learning_rate": "model/get_train_op/learning_rate/learning_rate",
     "cross_entropy_loss": "model/cross_entropy"}
 
-
+# 定义训练方式
 def model_fn(features, labels, mode, params):
   """Defines how to train, evaluate and predict from the transformer model."""
   '''
@@ -74,9 +74,9 @@ def model_fn(features, labels, mode, params):
   with tf.variable_scope("model"):
     inputs, targets = features, labels
 
-    # Create model and get output logits.
+    # Create model and get output logits. 真正的生成模型
     model = transformer.Transformer(params, mode == tf.estimator.ModeKeys.TRAIN)
-
+    #训练过程的预测结果
     logits = model(inputs, targets)
 
     # When in prediction mode, the labels/targets is None. The model output
@@ -517,7 +517,7 @@ def define_transformer_flags():
 
   flags_core.require_cloud_storage(["data_dir", "model_dir", "export_dir"])
 
-
+# 生成模型（estimator），完成
 def construct_estimator(flags_obj, params, schedule_manager):
   """Construct an estimator from either Estimator or TPUEstimator.
 
@@ -529,6 +529,7 @@ def construct_estimator(flags_obj, params, schedule_manager):
   Returns:
     An estimator object to be used for training and eval.
   """
+  # 不使用TPU，只需要将参数和分布式策略传给Estimator类就可以
   if not params["use_tpu"]:
     distribution_strategy = distribution_utils.get_distribution_strategy(
         distribution_strategy=flags_obj.distribution_strategy,
@@ -536,8 +537,9 @@ def construct_estimator(flags_obj, params, schedule_manager):
         all_reduce_alg=flags_obj.all_reduce_alg)
     return tf.estimator.Estimator(
         model_fn=model_fn, model_dir=flags_obj.model_dir, params=params,
-        config=tf.estimator.RunConfig(train_distribute=distribution_strategy))
+        config=tf.estimator.RunConfig(train_distribute=distribution_strategy))  # 注意参数之一有一个定义训练方式的函数model_fn
 
+  # 使用TPU还需要配置额外的参数
   tpu_cluster_resolver = tf.contrib.cluster_resolver.TPUClusterResolver(
       tpu=flags_obj.tpu,
       zone=flags_obj.tpu_zone,
@@ -565,7 +567,7 @@ def construct_estimator(flags_obj, params, schedule_manager):
           key: value for key, value in params.items() if key != "batch_size"},
       config=run_config)
 
-# 根据flags提供的参数对transformer进行参数配置，生成模型
+# 根据flags提供的参数对transformer进行参数配置，生成模型（estimator），完成
 def run_transformer(flags_obj):
   """Create tf.Estimator to train and evaluate transformer model.
 
@@ -628,9 +630,9 @@ def run_transformer(flags_obj):
   # ？？？复述集
   params["repeat_dataset"] = schedule_manager.repeat_dataset
 
-  model_helpers.apply_clean(flags.FLAGS)    #
+  model_helpers.apply_clean(flags.FLAGS)    # 替换现有的模型路径
 
-  # Create hooks that log information about the training and metric values
+  # Create hooks that log information about the training and metric values 生成训练用的钩子（回调）
   train_hooks = hooks_helper.get_train_hooks(
       flags_obj.hooks,
       model_dir=flags_obj.model_dir,
@@ -638,14 +640,14 @@ def run_transformer(flags_obj):
       batch_size=total_batch_size,  # for ExamplesPerSecondHook
       use_tpu=params["use_tpu"]  # Not all hooks can run with TPUs
   )
-  benchmark_logger = logger.get_benchmark_logger()
-  benchmark_logger.log_run_info(
+  benchmark_logger = logger.get_benchmark_logger()  # 获得logger
+  benchmark_logger.log_run_info(                    # 输出信息
       model_name="transformer",
       dataset_name="wmt_translate_ende",
       run_params=params,
       test_id=flags_obj.benchmark_test_id)
 
-  # Train and evaluate transformer model
+  # Train and evaluate transformer model 生成模型开始训练和评测
   estimator = construct_estimator(flags_obj, params, schedule_manager)
   stats = run_loop(
       estimator=estimator,
@@ -659,7 +661,7 @@ def run_transformer(flags_obj):
       bleu_threshold=flags_obj.stop_threshold,
       vocab_file=flags_obj.vocab_file)
 
-  if flags_obj.export_dir and not params["use_tpu"]:
+  if flags_obj.export_dir and not params["use_tpu"]:    #把模型结果保存输出
     serving_input_fn = export.build_tensor_serving_input_receiver_fn(
         shape=[None], dtype=tf.int64, batch_size=None)
     # Export saved model, and save the vocab file as an extra asset. The vocab
@@ -679,7 +681,7 @@ def main(_):
   with logger.benchmark_context(flags.FLAGS):   # 调用配置Logger
     run_transformer(flags.FLAGS)                # 将参数传递给transformer
 
-
+# main→flags(参数)→main()→（run_transformer()→（construct_estimator()→model_fn()））→run_loop()
 if __name__ == "__main__":
   tf.logging.set_verbosity(tf.logging.INFO)     # 将 TensorFlow 日志信息输出到屏幕
   define_transformer_flags()                    # 定义模型所需参数

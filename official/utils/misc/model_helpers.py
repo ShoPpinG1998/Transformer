@@ -85,7 +85,7 @@ def generate_synthetic_data(
 
   return tf.data.Dataset.from_tensors(element).repeat()
 
-
+# 像是在替换模型的现有路径
 def apply_clean(flags_obj):
   if flags_obj.clean and tf.io.gfile.exists(flags_obj.model_dir):
     tf.compat.v1.logging.info("--clean flag set. Removing existing model dir:"

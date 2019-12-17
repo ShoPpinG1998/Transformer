@@ -264,7 +264,7 @@ class BenchmarkBigQueryLogger(BaseBenchmarkLogger):
 
   def log_run_info(self, model_name, dataset_name, run_params, test_id=None):
     """Collect most of the TF runtime information for the local env.
-
+    开两个线程用来将收集的环境信息和模型信息输出
     The schema of the run info follows official/benchmark/datastore/schema.
 
     Args:
@@ -301,7 +301,7 @@ class BenchmarkBigQueryLogger(BaseBenchmarkLogger):
 
 
 def _gather_run_info(model_name, dataset_name, run_params, test_id):
-  """Collect the benchmark run information for the local environment."""
+  """Collect the benchmark run information for the local environment.  收集tensorflow的环境信息，并加上模型参数信息"""
   run_info = {
       "model_name": model_name,
       "dataset": {"name": dataset_name},

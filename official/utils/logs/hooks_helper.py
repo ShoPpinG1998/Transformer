@@ -37,7 +37,7 @@ _TENSORS_TO_LOG = dict((x, x) for x in ['learning_rate',
 
 def get_train_hooks(name_list, use_tpu=False, **kwargs):
   """Factory for getting a list of TensorFlow hooks for training by name.
-
+  把参数列表转化成供训练回调的钩子(一个列表？？？)
   Args:
     name_list: a list of strings to name desired hook classes. Allowed:
       LoggingTensorHook, ProfilerHook, ExamplesPerSecondHook, which are defined
