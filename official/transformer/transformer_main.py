@@ -68,6 +68,9 @@ TENSORS_TO_LOG = {
 
 def model_fn(features, labels, mode, params):
   """Defines how to train, evaluate and predict from the transformer model."""
+  '''
+  
+  '''
   with tf.variable_scope("model"):
     inputs, targets = features, labels
 
@@ -386,14 +389,16 @@ def run_loop(
 
   return stats
 
-
+# 定义参数，完成
 def define_transformer_flags():
-  """Add flags and flag validators for running transformer_main."""
+  """添加flag 接受从终端传入的命令行参数"""
   # Add common flags (data_dir, model_dir, train_epochs, etc.).
+
+  # 定义一个用于接收 int 类型数值的变量:max_length
   flags.DEFINE_integer(
       name="max_length", short_name="ml", default=None,
       help=flags_core.help_wrap("Max length."))
-
+  # 定义训练参数
   flags_core.define_base(clean=True, train_epochs=True,
                          epochs_between_evals=True, stop_threshold=True,
                          num_gpu=True, hooks=True, export_dir=True,
@@ -408,14 +413,16 @@ def define_transformer_flags():
       all_reduce_alg=True
   )
   flags_core.define_benchmark()
-  flags_core.define_device(tpu=True)
+  flags_core.define_device(tpu=False)
 
   # Set flags from the flags_core module as "key flags" so they're listed when
   # the '-h' flag is used. Without this line, the flags defined above are
   # only shown in the full `--helpful` help text.
+  # 应用定义的参数，能够在使用-h命令时显示
   flags.adopt_module_key_flags(flags_core)
 
   # Add transformer-specific flags
+  # 定义transformer特有的参数，变量param_set是transformer规模，默认大；
   flags.DEFINE_enum(
       name="param_set", short_name="mp", default="big",
       enum_values=PARAMS_MAP.keys(),
@@ -426,7 +433,7 @@ def define_transformer_flags():
           "and various other settings. The big parameter set increases the "
           "default batch size, embedding/hidden size, and filter size. For a "
           "complete list of parameters, please see model/model_params.py."))
-
+  # static_batch决定是batch大小是否可变，TPU上不可变。
   flags.DEFINE_bool(
       name="static_batch", default=False,
       help=flags_core.help_wrap(
@@ -438,6 +445,7 @@ def define_transformer_flags():
           "and static batching will always be used."))
 
   # Flags for training with steps (may be used for debugging)
+  # 定义训练的步长（次数）和每几步验证一次
   flags.DEFINE_integer(
       name="train_steps", short_name="ts", default=None,
       help=flags_core.help_wrap("The number of steps used to train."))
@@ -448,6 +456,7 @@ def define_transformer_flags():
           "used if --train_steps is defined."))
 
   # BLEU score computation
+  # BLEU值计算的参考文件路径
   flags.DEFINE_string(
       name="bleu_source", short_name="bls", default=None,
       help=flags_core.help_wrap(
@@ -462,18 +471,19 @@ def define_transformer_flags():
           "official BLEU score. Both --bleu_source and --bleu_ref must be set. "
           "Use the flag --stop_threshold to stop the script based on the "
           "uncased BLEU score."))
+  # 子词词库文件路径
   flags.DEFINE_string(
       name="vocab_file", short_name="vf", default=None,
       help=flags_core.help_wrap(
           "Path to subtoken vocabulary file. If data_download.py was used to "
           "download and encode the training data, look in the data_dir to find "
           "the vocab file."))
-
+  # 设置路径默认值
   flags_core.set_defaults(data_dir="/tmp/translate_ende",
                           model_dir="/tmp/transformer_model",
                           batch_size=None,
                           train_epochs=None)
-
+  # 验证必须的参数是否已经定义
   @flags.multi_flags_validator(
       ["train_epochs", "train_steps"],
       message="Both --train_steps and --train_epochs were set. Only one may be "
@@ -555,7 +565,7 @@ def construct_estimator(flags_obj, params, schedule_manager):
           key: value for key, value in params.items() if key != "batch_size"},
       config=run_config)
 
-
+# 根据flags提供的参数对transformer进行参数配置，生成模型
 def run_transformer(flags_obj):
   """Create tf.Estimator to train and evaluate transformer model.
 
@@ -567,31 +577,32 @@ def run_transformer(flags_obj):
     `train_hooks`, `bleu_cased`, and `bleu_uncased`. `train_hooks` is a list the
     instances of hooks used during training.
   """
-  num_gpus = flags_core.get_num_gpus(flags_obj)
+  num_gpus = flags_core.get_num_gpus(flags_obj)     # 获取GPU数量
 
   # Add flag-defined parameters to params object
-  params = PARAMS_MAP[flags_obj.param_set]
-  if num_gpus > 1:
+  params = PARAMS_MAP[flags_obj.param_set]          # 获取transformer的大小(size)
+  if num_gpus > 1:                                  # 根据GPU数量和决定用的模型尺寸获取相应的模型参数
     if flags_obj.param_set == "big":
       params = model_params.BIG_MULTI_GPU_PARAMS
     elif flags_obj.param_set == "base":
       params = model_params.BASE_MULTI_GPU_PARAMS
 
-  params["data_dir"] = flags_obj.data_dir
-  params["model_dir"] = flags_obj.model_dir
-  params["num_parallel_calls"] = flags_obj.num_parallel_calls
+  params["data_dir"] = flags_obj.data_dir           # 模型参数加上数据文件的路径
+  params["model_dir"] = flags_obj.model_dir         # 模型参数加上保存模型文件的路径
+  params["num_parallel_calls"] = flags_obj.num_parallel_calls   # ？？？平行调用什么东西
 
-  params["tpu"] = flags_obj.tpu
+  params["tpu"] = flags_obj.tpu                     # TPU的使用
   params["use_tpu"] = bool(flags_obj.tpu)  # was a tpu specified.
   params["static_batch"] = flags_obj.static_batch or params["use_tpu"]
   params["allow_ffn_pad"] = not params["use_tpu"]
 
-  params["max_length"] = flags_obj.max_length or params["max_length"]
+  params["max_length"] = flags_obj.max_length or params["max_length"]   # 最大长度
 
-  params["use_synthetic_data"] = flags_obj.use_synthetic_data
+  params["use_synthetic_data"] = flags_obj.use_synthetic_data       # 是否使用合成数据
 
   # Set batch size parameter, which depends on the availability of
   # TPU and GPU, and distribution settings.
+  # 对GPU和TPU设置不同德batch size
   params["batch_size"] = (flags_obj.batch_size or (
       params["default_batch_size_tpu"] if params["use_tpu"]
       else params["default_batch_size"]))
@@ -601,6 +612,7 @@ def run_transformer(flags_obj):
     params["batch_size"] = distribution_utils.per_replica_batch_size(
         params["batch_size"], num_gpus)
 
+  # 配置transformer中的训练过程规划：次数、验证间隔、轮数、batch大小、最大长度
   schedule_manager = schedule.Manager(
       train_steps=flags_obj.train_steps,
       steps_between_evals=flags_obj.steps_between_evals,
@@ -613,9 +625,10 @@ def run_transformer(flags_obj):
       num_tpu_shards=flags_obj.num_tpu_shards
   )
 
+  # ？？？复述集
   params["repeat_dataset"] = schedule_manager.repeat_dataset
 
-  model_helpers.apply_clean(flags.FLAGS)
+  model_helpers.apply_clean(flags.FLAGS)    #
 
   # Create hooks that log information about the training and metric values
   train_hooks = hooks_helper.get_train_hooks(
@@ -663,11 +676,11 @@ def run_transformer(flags_obj):
 
 
 def main(_):
-  with logger.benchmark_context(flags.FLAGS):
-    run_transformer(flags.FLAGS)
+  with logger.benchmark_context(flags.FLAGS):   # 调用配置Logger
+    run_transformer(flags.FLAGS)                # 将参数传递给transformer
 
 
 if __name__ == "__main__":
-  tf.logging.set_verbosity(tf.logging.INFO)
-  define_transformer_flags()
-  absl_app.run(main)
+  tf.logging.set_verbosity(tf.logging.INFO)     # 将 TensorFlow 日志信息输出到屏幕
+  define_transformer_flags()                    # 定义模型所需参数
+  absl_app.run(main)                            # 创建一个应用运行main

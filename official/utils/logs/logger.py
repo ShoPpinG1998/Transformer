@@ -51,9 +51,9 @@ FLAGS = flags.FLAGS
 
 # Don't use it directly. Use get_benchmark_logger to access a logger.
 _benchmark_logger = None
-_logger_lock = threading.Lock()
+_logger_lock = threading.Lock() #新开一个用来Log的线程
 
-
+# 配置logger
 def config_benchmark_logger(flag_obj=None):
   """Config the global benchmark logger."""
   _logger_lock.acquire()
