@@ -31,12 +31,12 @@ class FeedFowardNetwork(tf.layers.Layer):
     self.relu_dropout = relu_dropout
     self.train = train
     self.allow_pad = allow_pad
-
+    # relu激活层
     self.filter_dense_layer = tf.layers.Dense(
         filter_size, use_bias=True, activation=tf.nn.relu, name="filter_layer")
     self.output_dense_layer = tf.layers.Dense(
         hidden_size, use_bias=True, name="output_layer")
-
+  # ffn，过relu激活再全连接一次，其他padding的有点不明所以
   def call(self, x, padding=None):
     """Return outputs of the feedforward network.
 

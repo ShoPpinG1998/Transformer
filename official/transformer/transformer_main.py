@@ -65,7 +65,7 @@ TENSORS_TO_LOG = {
     "learning_rate": "model/get_train_op/learning_rate/learning_rate",
     "cross_entropy_loss": "model/cross_entropy"}
 
-# 定义训练方式
+# 定义训练方式，完成
 def model_fn(features, labels, mode, params):
   """Defines how to train, evaluate and predict from the transformer model."""
   '''
@@ -80,7 +80,7 @@ def model_fn(features, labels, mode, params):
     logits = model(inputs, targets)
 
     # When in prediction mode, the labels/targets is None. The model output
-    # is the prediction
+    # is the prediction  如果是预测阶段，则直接将预测结果返回
     if mode == tf.estimator.ModeKeys.PREDICT:
       if params["use_tpu"]:
         raise NotImplementedError("Prediction is not yet supported on TPUs.")
@@ -97,12 +97,13 @@ def model_fn(features, labels, mode, params):
     # it is known from Transformer that the first two dimensions of logits
     # are the dimensions of targets. Note that the ambiguous shape of logits is
     # not a problem when computing xentropy, because padded_cross_entropy_loss
-    # resolves the shape on the TPU.
+    # resolves the shape on the TPU. 指定TPU形状
     logits.set_shape(targets.shape.as_list() + logits.shape.as_list()[2:])
 
     # Calculate model loss.
     # xentropy contains the cross entropy loss of every nonpadding token in the
     # targets.
+    # 计算loss值
     xentropy, weights = metrics.padded_cross_entropy_loss(
         logits, targets, params["label_smoothing"], params["vocab_size"])
     loss = tf.reduce_sum(xentropy) / tf.reduce_sum(weights)
@@ -110,6 +111,7 @@ def model_fn(features, labels, mode, params):
     # Save loss as named tensor that will be logged with the logging hook.
     tf.identity(loss, "cross_entropy")
 
+    # 评测预测结果，分成TPU下和GPU下
     if mode == tf.estimator.ModeKeys.EVAL:
       if params["use_tpu"]:
         # host call functions should only have tensors as arguments.
@@ -129,6 +131,7 @@ def model_fn(features, labels, mode, params):
 
       # Epochs can be quite long. This gives some intermediate information
       # in TensorBoard.
+      # 在训练过程中输出loss值
       metric_dict["minibatch_loss"] = loss
       if params["use_tpu"]:
         return tf.contrib.tpu.TPUEstimatorSpec(
@@ -140,12 +143,12 @@ def model_fn(features, labels, mode, params):
       record_scalars(metric_dict)
       return tf.estimator.EstimatorSpec(mode=mode, loss=loss, train_op=train_op)
 
-
+# 记录metric中的标量，完成
 def record_scalars(metric_dict):
   for key, value in metric_dict.items():
     tf.summary.scalar(name=key, tensor=value)
 
-
+# 返回学习率，完成
 def get_learning_rate(learning_rate, hidden_size, learning_rate_warmup_steps):
   """Calculate learning rate with linear warmup and rsqrt decay."""
   with tf.name_scope("learning_rate"):
@@ -165,7 +168,7 @@ def get_learning_rate(learning_rate, hidden_size, learning_rate_warmup_steps):
 
     return learning_rate
 
-
+# 生成训练选项，包括学习率和向量尺寸等
 def get_train_op_and_metrics(loss, params):
   """Generate training op and metrics to save in TensorBoard."""
   with tf.variable_scope("get_train_op"):
@@ -176,6 +179,7 @@ def get_train_op_and_metrics(loss, params):
 
     # Create optimizer. Use LazyAdamOptimizer from TF contrib, which is faster
     # than the TF core Adam optimizer.
+    # 选择Adam优化器
     optimizer = tf.contrib.opt.LazyAdamOptimizer(
         learning_rate,
         beta1=params["optimizer_adam_beta1"],
@@ -185,7 +189,7 @@ def get_train_op_and_metrics(loss, params):
     if params["use_tpu"] and params["tpu"] != tpu_util.LOCAL:
       optimizer = tf.contrib.tpu.CrossShardOptimizer(optimizer)
 
-    # Uses automatic mixed precision FP16 training if on GPU.
+    # Uses automatic mixed precision FP16 training if on GPU. 启用混合精度训练
     if params["dtype"] == "fp16":
       optimizer = tf.train.experimental.enable_mixed_precision_graph_rewrite(
           optimizer)
@@ -210,7 +214,7 @@ def get_train_op_and_metrics(loss, params):
 
     return train_op, train_metrics
 
-
+# 翻译并计算BLEU值，完成
 def translate_and_compute_bleu(estimator, subtokenizer, bleu_source, bleu_ref):
   """Translate file and report the cased and uncased bleu scores."""
   # Create temporary file to store translation.
@@ -227,12 +231,12 @@ def translate_and_compute_bleu(estimator, subtokenizer, bleu_source, bleu_ref):
   os.remove(tmp_filename)
   return uncased_score, cased_score
 
-
+# 返回最后一个checkpoint，完成
 def get_global_step(estimator):
   """Return estimator's last checkpoint."""
   return int(estimator.latest_checkpoint().split("-")[-1])
 
-
+# 计算并记录BLEU得分，完成
 def evaluate_and_log_bleu(estimator, bleu_source, bleu_ref, vocab_file):
   """Calculate and record the BLEU score."""
   subtokenizer = tokenizer.Subtokenizer(vocab_file)
@@ -244,13 +248,13 @@ def evaluate_and_log_bleu(estimator, bleu_source, bleu_ref, vocab_file):
   tf.logging.info("Bleu score (cased): %f", cased_score)
   return uncased_score, cased_score
 
-
+# 验证文件路径是否存在，不存在会报错，完成
 def _validate_file(filepath):
   """Make sure that file exists."""
   if not tf.io.gfile.exists(filepath):
     raise tf.errors.NotFoundError(None, None, "File %s not found." % filepath)
 
-
+# 按 schedule_manager的规划训练模型并输出信息，完成
 def run_loop(
     estimator, schedule_manager, train_hooks=None, benchmark_logger=None,
     bleu_source=None, bleu_ref=None, bleu_threshold=None, vocab_file=None):
@@ -310,7 +314,7 @@ def run_loop(
                      "as it requires estimator.predict which is not yet "
                      "supported.")
 
-  # Print details of training schedule.
+  # Print details of training schedule. 输出信息
   tf.logging.info("Training schedule:")
   tf.logging.info(
       "\t1. Train for {}".format(schedule_manager.train_increment_str))
@@ -333,13 +337,14 @@ def run_loop(
       # Change loop stopping condition if bleu_threshold is defined.
       schedule_manager.train_eval_iterations = INF
 
-  # Loop training/evaluation/bleu cycles
+  # Loop training/evaluation/bleu cycles 循环训练或者循环评测
   stats = {}
   for i in xrange(schedule_manager.train_eval_iterations):
     tf.logging.info("Starting iteration %d" % (i + 1))
 
     # Train the model for single_iteration_train_steps or until the input fn
     # runs out of examples (if single_iteration_train_steps is None).
+    # 进行一轮训练
     estimator.train(
         dataset.train_input_fn,
         steps=schedule_manager.single_iteration_train_steps,

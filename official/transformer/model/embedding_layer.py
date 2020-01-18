@@ -31,14 +31,15 @@ class EmbeddingSharedWeights(tf.layers.Layer):
     """Specify characteristic parameters of embedding layer.
 
     Args:
-      vocab_size: Number of tokens in the embedding. (Typically ~32,000)
-      hidden_size: Dimensionality of the embedding. (Typically 512 or 1024)
+      vocab_size: Number of tokens in the embedding. 词库词数 (Typically ~32,000)
+      hidden_size: Dimensionality of the embedding.  隐状态维度(Typically 512 or 1024)
       method: Strategy for performing embedding lookup. "gather" uses tf.gather
         which performs well on CPUs and GPUs, but very poorly on TPUs. "matmul"
         one-hot encodes the indicies and formulates the embedding as a sparse
         matrix multiplication. The matmul formulation is wasteful as it does
         extra work, however matrix multiplication is very fast on TPUs which
         makes "matmul" considerably faster than "gather" on TPUs.
+        GPU/CPU用"gather"，TPU用"matmul"
     """
     super(EmbeddingSharedWeights, self).__init__()
     self.vocab_size = vocab_size
@@ -50,7 +51,7 @@ class EmbeddingSharedWeights(tf.layers.Layer):
   def build(self, _):
     with tf.variable_scope("embedding_and_softmax", reuse=tf.AUTO_REUSE):
       # Create and initialize weights. The random normal initializer was chosen
-      # randomly, and works well.
+      # randomly, and works well. 最开始的embedding matrix是用正态分布(0,根号隐状态维度)随机初始化的（大概为了加速收敛吧）
       self.shared_weights = tf.get_variable(
           "weights", [self.vocab_size, self.hidden_size],
           initializer=tf.random_normal_initializer(
@@ -69,13 +70,13 @@ class EmbeddingSharedWeights(tf.layers.Layer):
         locations of the padding tokens in x.
     """
     with tf.name_scope("embedding"):
-      # Create binary mask of size [batch_size, length]
+      # Create binary mask of size [batch_size, length] x的0不变，非0转化成1
       mask = tf.to_float(tf.not_equal(x, 0))
 
       if self.method == "gather":
-        embeddings = tf.gather(self.shared_weights, x)
-        embeddings *= tf.expand_dims(mask, -1)
-      else:  # matmul
+        embeddings = tf.gather(self.shared_weights, x)  # 用x作为索引，把对应embedding从shared_weight中提取出来
+        embeddings *= tf.expand_dims(mask, -1)          # mask掉0的部分（0是padding上去的为了保持batch中长度相同）
+      else:  # matmul 在TPU上，跟gather作用一样
         embeddings = tpu_utils.embedding_matmul(
             embedding_table=self.shared_weights,
             values=tf.cast(x, dtype=tf.int32),
@@ -85,12 +86,12 @@ class EmbeddingSharedWeights(tf.layers.Layer):
         # `embeddings *= tf.expand_dims(mask, -1)` is unnecessary.
 
 
-      # Scale embedding by the sqrt of the hidden size
+      # Scale embedding by the sqrt of the hidden size 用hidden_size的平方根对embedding进行放缩
       embeddings *= self.hidden_size ** 0.5
 
       return embeddings
 
-
+  # decode时，把output从batch × length × hidden size转为batch × length × vocab size
   def linear(self, x):
     """Computes logits by running x through a linear layer.
 

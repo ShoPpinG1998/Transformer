@@ -38,6 +38,7 @@ import tensorflow as tf
 
 def _pad_tensors_to_same_length(x, y):
   """Pad x and y so that the results have the same length (second dimension)."""
+  # 在第二个维度上对x,y进行填充
   with tf.name_scope("pad_to_same_length"):
     x_length = tf.shape(x)[1]
     y_length = tf.shape(y)[1]

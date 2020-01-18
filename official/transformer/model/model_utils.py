@@ -28,7 +28,7 @@ import tensorflow as tf
 _NEG_INF_FP32 = -1e9
 _NEG_INF_FP16 = np.finfo(np.float16).min
 
-
+# 获得position embedding
 def get_position_encoding(
     length, hidden_size, min_timescale=1.0, max_timescale=1.0e4):
   """Return positional encoding.
@@ -49,18 +49,18 @@ def get_position_encoding(
   # We compute the positional encoding in float32 even if the model uses
   # float16, as many of the ops used, like log and exp, are numerically unstable
   # in float16.
-  position = tf.cast(tf.range(length), tf.float32)
-  num_timescales = hidden_size // 2
+  position = tf.cast(tf.range(length), tf.float32)  # 获得位置向量(数组)
+  num_timescales = hidden_size // 2                 # 尺寸整除2
   log_timescale_increment = (
       math.log(float(max_timescale) / float(min_timescale)) /
       (tf.cast(num_timescales, tf.float32) - 1))
   inv_timescales = min_timescale * tf.exp(
       tf.cast(tf.range(num_timescales), tf.float32) * -log_timescale_increment)
   scaled_time = tf.expand_dims(position, 1) * tf.expand_dims(inv_timescales, 0)
-  signal = tf.concat([tf.sin(scaled_time), tf.cos(scaled_time)], axis=1)
+  signal = tf.concat([tf.sin(scaled_time), tf.cos(scaled_time)], axis=1)    # 使用三角函数计算position embedding
   return signal
 
-
+# 获得decoder self attention的bias（padding上负无穷，大概是为了softmax吧）
 def get_decoder_self_attention_bias(length, dtype=tf.float32):
   """Calculate bias for decoder that maintains model's autoregressive property.
 
@@ -75,6 +75,7 @@ def get_decoder_self_attention_bias(length, dtype=tf.float32):
   Returns:
     float tensor of shape [1, 1, length, length]
   """
+  # 定义负无穷
   neg_inf = _NEG_INF_FP16 if dtype == tf.float16 else _NEG_INF_FP32
   with tf.name_scope("decoder_self_attention_bias"):
     valid_locs = tf.linalg.band_part(tf.ones([length, length], dtype=dtype),
@@ -83,7 +84,7 @@ def get_decoder_self_attention_bias(length, dtype=tf.float32):
     decoder_bias = neg_inf * (1.0 - valid_locs)
   return decoder_bias
 
-
+# 获得padding的位置，0表示没有，1表示有
 def get_padding(x, padding_value=0, dtype=tf.float32):
   """Return float tensor representing the padding values in x.
 
@@ -99,7 +100,7 @@ def get_padding(x, padding_value=0, dtype=tf.float32):
   with tf.name_scope("padding"):
     return tf.cast(tf.equal(x, padding_value), dtype)
 
-
+# 为padding的bias填上 1e-9
 def get_padding_bias(x, padding_value=0, dtype=tf.float32):
   """Calculate bias tensor from padding values in tensor.
 
